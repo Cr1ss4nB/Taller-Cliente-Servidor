@@ -1,5 +1,5 @@
 let tareas = [];
-let nextId = 1;
+let nextLocalId = 1;
 const API_URL = "https://jsonplaceholder.typicode.com/todos";
 
 const taskText = document.getElementById("taskText");
@@ -9,79 +9,106 @@ const feedback = document.getElementById("feedback");
 
 async function agregarTarea() {
   const texto = taskText.value.trim();
-  if (texto === "") {
+  if (!texto) {
     mostrarFeedback("El campo no puede estar vacío", "error");
     return;
   }
 
-  const nuevaTarea = { id: nextId++, title: texto, completed: false };
+  const nueva = {
+    localId: nextLocalId++,
+    title: texto,
+    completed: false,
+    serverId: null
+  };
+
+  tareas.push(nueva);
+  taskText.value = "";
+  renderizarTareas();
+  mostrarFeedback("Enviando al servidor...", "info");
 
   try {
-    const response = await fetch(API_URL, {
+    const res = await fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify(nuevaTarea),
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: nueva.title, completed: nueva.completed })
     });
-
-    if (!response.ok) throw new Error("Error al agregar en servidor");
-
-    const data = await response.json();
-    tareas.push(data);
-
+    if (!res.ok) throw new Error("Error al agregar en servidor");
+    const data = await res.json();
+    const tareaLocal = tareas.find(t => t.localId === nueva.localId);
+    if (tareaLocal) tareaLocal.serverId = data.id;
     mostrarFeedback("Tarea agregada con éxito", "success");
-    taskText.value = "";
     renderizarTareas();
-  } catch (error) {
-    mostrarFeedback(error.message, "error");
+  } catch (err) {
+    mostrarFeedback("No se pudo guardar en servidor: " + err.message, "error");
   }
 }
 
-async function completarTarea(id) {
-  const tarea = tareas.find((t) => t.id === id);
+ // eSTA FUNCIÓN TIENE UN ERROR. AL DARLE COMPLETAR UNA TAREA MARCA ERROR 500 PARA EL PUT 
+async function completarTarea(localId) {
+  const tarea = tareas.find(t => t.localId === localId);
+  if (!tarea) return;
+  tarea.completed = !tarea.completed;
+  renderizarTareas();
+
+  try {
+    if (tarea.serverId) {
+      const res = await fetch(`${API_URL}/${tarea.serverId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: tarea.title, completed: tarea.completed })
+      });
+      if (!res.ok) throw new Error("Error al actualizar tarea en servidor");
+      mostrarFeedback("Tarea actualizada", "success");
+    } else {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: tarea.title, completed: tarea.completed })
+      });
+      if (!res.ok) throw new Error("Error al crear tarea en servidor");
+      const data = await res.json();
+      tarea.serverId = data.id;
+      mostrarFeedback("Tarea sincronizada con servidor", "success");
+    }
+  } catch (err) {
+    mostrarFeedback("Error de red: " + err.message, "error");
+  }
+}
+// corregir esta función
+
+
+async function eliminarTarea(localId) {
+  const tarea = tareas.find(t => t.localId === localId);
   if (!tarea) return;
 
-  tarea.completed = !tarea.completed;
+  // eliminamos localmente primero (optimistic UI)
+  tareas = tareas.filter(t => t.localId !== localId);
+  renderizarTareas();
 
   try {
-    const response = await fetch(`${API_URL}/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(tarea),
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!response.ok) throw new Error("Error al actualizar tarea");
-
-    mostrarFeedback("Tarea actualizada", "success");
-    renderizarTareas();
-  } catch (error) {
-    mostrarFeedback(error.message, "error");
-  }
-}
-
-async function eliminarTarea(id) {
-  try {
-    const response = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-    if (!response.ok) throw new Error("Error al eliminar tarea");
-
-    tareas = tareas.filter((t) => t.id !== id);
-    mostrarFeedback("Tarea eliminada", "info");
-    renderizarTareas();
-  } catch (error) {
-    mostrarFeedback(error.message, "error");
+    if (tarea.serverId) {
+      const res = await fetch(`${API_URL}/${tarea.serverId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error al eliminar tarea en servidor");
+      mostrarFeedback("Tarea eliminada", "info");
+    } else {
+      mostrarFeedback("Tarea eliminada localmente", "info");
+    }
+  } catch (err) {
+    mostrarFeedback("Error al eliminar en servidor: " + err.message, "error");
   }
 }
 
 function renderizarTareas() {
   taskList.innerHTML = "";
-  tareas.forEach((tarea) => {
+  tareas.forEach(t => {
     const li = document.createElement("li");
-    li.className = tarea.completed ? "completed" : "";
+    li.className = t.completed ? "completed" : "";
     li.innerHTML = `
-      <span>${tarea.title}</span>
-      <button onclick="completarTarea(${tarea.id})">
-        ${tarea.completed ? "Desmarcar" : "Completar"}
+      <span>${escapeHtml(t.title)}</span>
+      <button onclick="completarTarea(${t.localId})">
+        ${t.completed ? "Desmarcar" : "Completar"}
       </button>
-      <button onclick="eliminarTarea(${tarea.id})">Eliminar</button>
+      <button onclick="eliminarTarea(${t.localId})">Eliminar</button>
     `;
     taskList.appendChild(li);
   });
@@ -89,7 +116,15 @@ function renderizarTareas() {
 
 function mostrarFeedback(mensaje, tipo) {
   feedback.textContent = mensaje;
-  feedback.className = tipo;
+  feedback.className = tipo; // css: success, error, info
+}
+
+// pequeña utilidad para evitar inyección si muestras títulos
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 addTaskBtn.addEventListener("click", agregarTarea);

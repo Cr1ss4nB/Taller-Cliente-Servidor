@@ -1,11 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller Cliente-Servidor - ToDoList</title>
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    
+  <div class="container">
+    <h1>Lista de Tareas</h1>
+
+    <!-- Campo de entrada -->
+    <div class="task-input">
+      <input type="text" id="taskText" placeholder="Escribe una tarea...">
+      <button id="addTaskBtn">Agregar</button>
+    </div>
+
+    <!-- Zona de feedback -->
+    <div id="feedback" class="info">Escribe una tarea y presiona "Agregar"</div>
+
+    <!-- Lista de tareas -->
+    <ul id="taskList"></ul>
+  </div>
+
+  <script src="js/app.js"></script>
 </body>
 </html>

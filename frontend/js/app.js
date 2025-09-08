@@ -51,9 +51,7 @@ async function completarTarea(localId) {
 
   try {
     if (tarea.serverId) {
-      // Usamos un ID válido del rango 1-200 para que PUT funcione
-      // JSONPlaceholder acepta PUT en cualquier ID de este rango
-      const idValido = ((tarea.serverId - 1) % 200) + 1; // Mapea cualquier ID al rango 1-200
+      const idValido = ((tarea.serverId - 1) % 200) + 1; 
       
       const res = await fetch(`${API_URL}/${idValido}`, {
         method: "PUT",
@@ -88,8 +86,6 @@ async function completarTarea(localId) {
 async function eliminarTarea(localId) {
   const tarea = tareas.find(t => t.localId === localId);
   if (!tarea) return;
-
-  // eliminamos localmente primero (optimistic UI)
   tareas = tareas.filter(t => t.localId !== localId);
   renderizarTareas();
 
@@ -124,10 +120,9 @@ function renderizarTareas() {
 
 function mostrarFeedback(mensaje, tipo) {
   feedback.textContent = mensaje;
-  feedback.className = tipo; // css: success, error, info
+  feedback.className = tipo;
 }
 
-// pequeña utilidad para evitar inyección si muestras títulos
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
